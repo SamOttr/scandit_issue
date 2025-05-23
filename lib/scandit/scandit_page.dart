@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart'
+as permission_handler show openAppSettings;
+import 'package:scandit_flutter_datacapture_core/scandit_flutter_datacapture_core.dart';
 import 'package:scandit_issue/components/rounded_button_widget.dart';
 import 'package:scandit_issue/components/scan_type_button_widget.dart';
 import 'package:scandit_issue/scandit/services/scandit_service.dart';
 import 'package:scandit_issue/scandit/utils/scandit_type.dart';
-import 'package:permission_handler/permission_handler.dart'
-    as permission_handler
-    show openAppSettings;
 
 class ScanditPage extends StatefulWidget {
-  const ScanditPage({Key? key, required ScanditService scanditService})
-    : _scanditService = scanditService,
-      super(key: key);
+  const ScanditPage({
+    Key? key,
+    required ScanditService scanditService,
+    RegExp? scanRegex,
+  })  : _scanditService = scanditService,
+        super(key: key);
 
   final ScanditService _scanditService;
 
@@ -65,70 +68,77 @@ class _ScanditPageState extends State<ScanditPage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Material(
       child: Scaffold(
-        body:
-            canDisplayScan
-                ? Stack(
+        body: canDisplayScan
+            ? Stack(
+          children: [
+            widget._scanditService.captureView,
+            Positioned(
+              top: 16,
+              right: 16,
+              child: SafeArea(
+                child: RoundedButtonWidget(
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              left: 16,
+              child: _torchWidget(),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: 260,
+                padding: const EdgeInsets.only(bottom: 32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    widget._scanditService.captureView,
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: SafeArea(
-                        child: RoundedButtonWidget(
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ),
+                    const SizedBox(
+                      height: 24,
                     ),
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        width: 260,
-                        padding: const EdgeInsets.only(bottom: 32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            const SizedBox(height: 24),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                ScanTypeButtonWidget(
-                                  'assets/icons/auto_scan.svg',
-                                  onPressed: () async {
-                                    await widget._scanditService.switchScanningMode(
-                                      ScanditType.scanditBasic,
-                                    );
-                                    setState(() {});
-                                  },
-                                  selectedScanType:
-                                      widget._scanditService.selectedScanType!,
-                                  scanType: ScanditType.scanditBasic,
-                                ),
-                                ScanTypeButtonWidget(
-                                  'assets/icons/manual_scan.svg',
-                                  onPressed: () async {
-                                    await widget._scanditService.switchScanningMode(
-                                      ScanditType.scanditSelection,
-                                    );
-                                    setState(() {});
-                                  },
-                                  selectedScanType:
-                                      widget._scanditService.selectedScanType!,
-                                  scanType: ScanditType.scanditSelection,
-                                ),
-                              ],
-                            ),
-                          ],
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ScanTypeButtonWidget(
+                          'assets/icons/auto_scan.svg',
+                          onPressed: () async {
+                            await widget._scanditService
+                                .switchScanningMode(
+                              ScanditType.scanditBasic,
+                            );
+                            setState(() {});
+                          },
+                          selectedScanType:
+                          widget._scanditService.selectedScanType!,
+                          scanType: ScanditType.scanditBasic,
                         ),
-                      ),
+                        ScanTypeButtonWidget(
+                          'assets/icons/manual_scan.svg',
+                          onPressed: () async {
+                            await widget._scanditService.switchScanningMode(
+                              ScanditType.scanditSelection,
+                            );
+                            setState(() {});
+                          },
+                          selectedScanType:
+                          widget._scanditService.selectedScanType!,
+                          scanType: ScanditType.scanditSelection,
+                        ),
+                      ],
                     ),
                   ],
-                )
-                : const Center(
-                  child: CircularProgressIndicator(
-                    color: Color.fromRGBO(10, 178, 34, 1),
-                  ),
                 ),
+              ),
+            ),
+          ],
+        )
+            : const Center(
+          child: CircularProgressIndicator(
+            color: Colors.green,
+          ),
+        ),
       ),
     );
   }
@@ -162,7 +172,7 @@ class _ScanditPageState extends State<ScanditPage> with WidgetsBindingObserver {
                       checkPermission();
                     },
                     child: const Text('Ok'),
-                  ),
+                  )
                 ],
               );
             },
@@ -186,7 +196,7 @@ class _ScanditPageState extends State<ScanditPage> with WidgetsBindingObserver {
                       permission_handler.openAppSettings();
                     },
                     child: const Text('Ok'),
-                  ),
+                  )
                 ],
               );
             },
@@ -198,5 +208,43 @@ class _ScanditPageState extends State<ScanditPage> with WidgetsBindingObserver {
     setState(() {
       canDisplayScan = !status.isPermanentlyDenied && !status.isDenied;
     });
+  }
+
+  Widget _torchWidget() {
+    return SafeArea(
+      child: RawMaterialButton(
+        onPressed: () async {
+          widget._scanditService.torchState == TorchState.on
+              ? await widget._scanditService.disableTorch()
+              : await widget._scanditService.enableTorch();
+
+          setState(() {});
+        },
+        fillColor: Colors.black.withOpacity(0.2),
+        padding: const EdgeInsets.all(15),
+        shape: const CircleBorder(),
+        child: _getFlashIcon(),
+      ),
+    );
+  }
+
+  Widget _getFlashIcon() {
+    switch (widget._scanditService.torchState) {
+      case TorchState.on:
+        return const Icon(
+          Icons.flash_on,
+          color: Colors.white,
+        );
+      case TorchState.off:
+        return const Icon(
+          Icons.flash_off,
+          color: Colors.white,
+        );
+      case TorchState.auto:
+        return const Icon(
+          Icons.flash_auto,
+          color: Colors.white,
+        );
+    }
   }
 }

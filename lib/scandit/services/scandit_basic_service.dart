@@ -12,8 +12,14 @@ class ScanditBasicService extends ScanditServiceInterface
   late BarcodeCapture _barcodeCapture;
   late Camera? _camera;
   late final CameraSettings _basicCameraSettings;
-  late final CameraSettings _selectionCameraSettings;
-  late final BarcodeCaptureOverlay _overlay;
+
+  BarcodeCaptureOverlay? _overlay;
+  TorchState _torchState = TorchState.off;
+
+  @override
+  TorchState get torchState {
+    return _torchState;
+  }
 
   final _settings = BarcodeCaptureSettings()
     ..enableSymbologies({
@@ -26,38 +32,28 @@ class ScanditBasicService extends ScanditServiceInterface
     ..codeDuplicateFilter = const Duration(seconds: 1);
 
   @override
-  void init() {
+  Future<void> init() async {
     _barcodeCapture =
     BarcodeCapture.forContext(DataCaptureContext.sharedInstance, _settings)
       ..isEnabled = false;
 
     _basicCameraSettings = BarcodeCapture.recommendedCameraSettings
       ..preferredResolution = VideoResolution.fullHd;
-    _selectionCameraSettings = BarcodeCapture.recommendedCameraSettings
-      ..preferredResolution = VideoResolution.fullHd;
     _camera = Camera.defaultCamera;
 
     if (_camera != null) {
-      _camera!.applySettings(_basicCameraSettings);
-      DataCaptureContext.sharedInstance.setFrameSource(_camera!);
-
-      _overlay = BarcodeCaptureOverlay.withBarcodeCaptureForView(
-        _barcodeCapture,
-        captureView,
-      )..viewfinder = RectangularViewfinder.withStyleAndLineStyle(
-        RectangularViewfinderStyle.square,
-        RectangularViewfinderLineStyle.light,
-      );
+      await _camera!.applySettings(_basicCameraSettings);
+      await DataCaptureContext.sharedInstance.setFrameSource(_camera!);
     }
   }
 
   @override
   Future<void> enableScan() async {
-    await DataCaptureContext.sharedInstance.setMode(_barcodeCapture);
-    await addOverlay();
     _barcodeCapture
       ..addListener(this)
       ..isEnabled = true;
+    await DataCaptureContext.sharedInstance.setMode(_barcodeCapture);
+    await addOverlay();
     await _camera!.switchToDesiredState(FrameSourceState.on);
   }
 
@@ -67,6 +63,7 @@ class ScanditBasicService extends ScanditServiceInterface
     _barcodeCapture
       ..isEnabled = false
       ..removeListener(this);
+    await disableTorch();
     await _camera?.switchToDesiredState(FrameSourceState.off);
     await removeOverlay();
   }
@@ -78,7 +75,7 @@ class ScanditBasicService extends ScanditServiceInterface
       Future<FrameData> Function() getFrameData,
       ) async {
     final code = session.newlyRecognizedBarcode;
-    print("---------- [BASIC SERVICE] SCANNED BARCODE : ${code?.data} ---------");
+    print("BASIC SERVICE - SCANNED ${code?.data}");
   }
 
   @override
@@ -91,7 +88,7 @@ class ScanditBasicService extends ScanditServiceInterface
   @override
   Future<void> dispose() async {
     if (await isEnable()) {
-      disableScan();
+      await disableScan();
     }
   }
 
@@ -105,11 +102,39 @@ class ScanditBasicService extends ScanditServiceInterface
 
   @override
   Future<void> addOverlay() async {
-    await _captureView.addOverlay(_overlay);
+    _overlay ??= BarcodeCaptureOverlay.withBarcodeCaptureForView(
+      _barcodeCapture,
+      captureView,
+    )..viewfinder = RectangularViewfinder.withStyleAndLineStyle(
+      RectangularViewfinderStyle.square,
+      RectangularViewfinderLineStyle.light,
+    );
+    await _captureView.addOverlay(_overlay!);
   }
 
   @override
   Future<void> removeOverlay() async {
-    await _captureView.removeOverlay(_overlay);
+    await _captureView.removeOverlay(_overlay!);
+  }
+
+  @override
+  Future<void> zoom({required double zoomFactor}) async {
+    _basicCameraSettings.zoomFactor = zoomFactor;
+    await _camera?.applySettings(_basicCameraSettings);
+    await DataCaptureContext.sharedInstance.setFrameSource(_camera!);
+  }
+
+  @override
+  Future<void> enableTorch() async {
+    final isAvailable = await _camera!.isTorchAvailable;
+    _torchState = TorchState.on;
+    if (isAvailable) _camera!.desiredTorchState = _torchState;
+  }
+
+  @override
+  Future<void> disableTorch() async {
+    final isAvailable = await _camera!.isTorchAvailable;
+    _torchState = TorchState.off;
+    if (isAvailable) _camera!.desiredTorchState = _torchState;
   }
 }

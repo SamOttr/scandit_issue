@@ -2,13 +2,13 @@ import 'package:scandit_flutter_datacapture_barcode/scandit_flutter_datacapture_
 import 'package:scandit_flutter_datacapture_core/scandit_flutter_datacapture_core.dart';
 import 'package:scandit_issue/scandit/services/scandit_aimer_service.dart';
 import 'package:scandit_issue/scandit/services/scandit_basic_service.dart';
-import 'package:scandit_issue/scandit/utils/scandit_config.dart';
 import 'package:scandit_issue/scandit/services/scandit_service_interface.dart';
+import 'package:scandit_issue/scandit/utils/scandit_config.dart';
 import 'package:scandit_issue/scandit/utils/scandit_type.dart';
 
 class ScanditService {
   ScanditService._({required ScanditConfig scanditConfig})
-    : _scanditConfig = scanditConfig;
+      : _scanditConfig = scanditConfig;
 
   static ScanditService? _instance;
 
@@ -36,6 +36,10 @@ class ScanditService {
     return _captureView;
   }
 
+  TorchState get torchState {
+    return _service.torchState;
+  }
+
   Future<void> initialize() async {
     await ScanditFlutterDataCaptureBarcode.initialize();
     await DataCaptureContext.initialize(_scanditConfig.scanditkey);
@@ -45,16 +49,20 @@ class ScanditService {
     );
 
     _basicService = ScanditBasicService(_captureView);
-    _basicService.init();
+    await _basicService.init();
 
     _aimerService = ScanditAimerService(_captureView);
-    _aimerService.init();
+    await _aimerService.init();
 
     selectedScanType = selectedScanType ?? ScanditType.scanditBasic;
-    _service = selectedScanType == ScanditType.scanditBasic ? _basicService : _aimerService;
+    _service = selectedScanType == ScanditType.scanditBasic
+        ? _basicService
+        : _aimerService;
   }
 
   Future<void> dispose() async {
+    zoom(zoomFactor: 1);
+    await disableTorch();
     await _service.dispose();
   }
 
@@ -63,7 +71,7 @@ class ScanditService {
 
     selectedScanType = type;
     _service =
-        (type == ScanditType.scanditBasic) ? _basicService : _aimerService;
+    (type == ScanditType.scanditBasic) ? _basicService : _aimerService;
 
     await enableScan();
   }
@@ -74,5 +82,17 @@ class ScanditService {
 
   Future<void> disableScan() async {
     await _service.disableScan();
+  }
+
+  void zoom({required double zoomFactor}) {
+    _service.zoom(zoomFactor: zoomFactor);
+  }
+
+  Future<void> enableTorch() async {
+    await _service.enableTorch();
+  }
+
+  Future<void> disableTorch() async {
+    await _service.disableTorch();
   }
 }
